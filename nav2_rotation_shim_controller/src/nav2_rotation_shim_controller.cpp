@@ -19,6 +19,8 @@
 #include <vector>
 #include <utility>
 
+#include "nav_2d_utils/tf_help.hpp"
+
 #include "nav2_rotation_shim_controller/nav2_rotation_shim_controller.hpp"
 
 using rcl_interfaces::msg::ParameterType;
@@ -143,10 +145,16 @@ geometry_msgs::msg::TwistStamped RotationShimController::computeVelocityCommands
   if (path_updated_) {
     std::lock_guard<std::mutex> lock_reinit(mutex_);
     try {
-      geometry_msgs::msg::Pose sampled_pt_base = transformPoseToBaseFrame(getSampledPathPt());
+      //geometry_msgs::msg::Pose sampled_pt_base = transformPoseToBaseFrame(getSampledPathPt());
+      geometry_msgs::msg::PoseStamped sampled_pt_base = getSampledPathPt();
+      double transform_tolerance_sec = 1.0;
+      auto transform_tolerance = rclcpp::Duration::from_seconds(transform_tolerance_sec);
+      nav_2d_utils::transformPose(
+          tf_, costmap_ros_->getBaseFrameID(), sampled_pt_base,
+          sampled_pt_base, transform_tolerance);
 
       double angular_distance_to_heading =
-        std::atan2(sampled_pt_base.position.y, sampled_pt_base.position.x);
+        std::atan2(sampled_pt_base.pose.position.y, sampled_pt_base.pose.position.x);
       if (fabs(angular_distance_to_heading) > angular_dist_threshold_) {
         RCLCPP_DEBUG(
           logger_,
@@ -203,7 +211,7 @@ geometry_msgs::msg::Pose
 RotationShimController::transformPoseToBaseFrame(const geometry_msgs::msg::PoseStamped & pt)
 {
   geometry_msgs::msg::PoseStamped pt_base;
-  if (!nav2_util::transformPoseInTargetFrame(pt, pt_base, *tf_, costmap_ros_->getBaseFrameID())) {
+  if (!nav2_util::transformPoseInTargetFrame(pt, pt_base, *tf_, costmap_ros_->getBaseFrameID()), 1.0) {
     throw nav2_core::PlannerException("Failed to transform pose to base frame!");
   }
   return pt_base.pose;
